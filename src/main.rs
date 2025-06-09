@@ -1,6 +1,13 @@
 use std::collections::HashMap;
+use std::io::{stdout, Write};
 use std::time::Duration;
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::{
+    cursor,
+    event::{self, Event, KeyCode},
+    execute,
+    terminal::{self, ClearType},
+    style::{Color, Print, SetForegroundColor, ResetColor},
+};
 use serde::{Serialize, Deserialize};
 use tokio::task::yield_now;
 
@@ -94,19 +101,141 @@ async fn read_input() -> InputEvent {
     }
 }
 
-#[tokio::main]
-async fn main() {
-    let mut ship = Ship::new();
-    // TODO: Initialize asteroids, resources, game state
+// --- Basic Entities for Asteroids and Resources ---
+#[derive(Debug, Clone)]
+struct Asteroid {
+    x: u16,
+    y: u16,
+}
 
-    loop {
-        let input = read_input().await;
-        match input {
-            InputEvent::Quit => break,
-            _ => {
-                // TODO: Handle input, update game state, render
+#[derive(Debug, Clone)]
+struct ResourceNode {
+    x: u16,
+    y: u16,
+    kind: Resource,
+}
+
+// --- Rendering ---
+fn render(ship: &Ship, asteroids: &[Asteroid], resources: &[ResourceNode], score: u32) {
+    let mut stdout = stdout();
+    execute!(stdout, terminal::Clear(ClearType::All), cursor::MoveTo(0, 0)).unwrap();
+
+    // Draw border
+    println!("╔════════════════════════════════════╗");
+    for y in 0..15 {
+        print!("║");
+        for x in 0..34 {
+            // Draw ship
+            if x == ship.x && y == ship.y {
+                print!(">A<");
+                // Skip next 2 chars for ship width
+                for _ in 0..2 { if x < 32 { print!(" "); } }
+            }
+            // Draw asteroids
+            else if asteroids.iter().any(|a| a.x == x && a.y == y) {
+                print!("O");
+            }
+            // Draw resources
+            else if let Some(res) = resources.iter().find(|r| r.x == x && r.y == y) {
+                match res.kind {
+                    Resource::Iron => print!("*"),
+                    Resource::Crystal => print!("♦"),
+                    Resource::Gold => print!("$"),
+                }
+            }
+            else {
+                print!(" ");
             }
         }
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        println!("║");
     }
+    println!("╠════════════════════════════════════╣");
+    print!("║ FUEL: ");
+    let fuel_blocks = (ship.fuel / 10.0).round() as usize;
+    for _ in 0..fuel_blocks { print!("█"); }
+    for _ in fuel_blocks..10 { print!("░"); }
+    print!("  CARGO: {}   SCORE: {} ║", ship.cargo.values().sum::<u32>(), score);
+    println!();
+    println!("╚════════════════════════════════════╝");
+    stdout.flush().unwrap();
+}
+
+// --- Physics & Game Logic ---
+fn physics_system(input: &InputEvent, ship: &mut Ship) {
+    match input {
+        InputEvent::Up if ship.y > 0 => ship.y -= 1,
+        InputEvent::Down if ship.y < 14 => ship.y += 1,
+        InputEvent::Left if ship.x > 0 => ship.x -= 1,
+        InputEvent::Right if ship.x < 31 => ship.x += 1,
+        _ => {}
+    }
+    // Fuel depletes over time
+    ship.fuel = (ship.fuel - 0.5).max(0.0);
+}
+
+fn collision_system(ship: &Ship, asteroids: &[Asteroid]) -> bool {
+    asteroids.iter().any(|a| a.x == ship.x && a.y == ship.y)
+}
+
+fn mining_system(input: &InputEvent, ship: &mut Ship, resources: &mut Vec<ResourceNode>) -> Option<Resource> {
+    if let InputEvent::Mine = input {
+        if let Some(idx) = resources.iter().position(|r| r.x == ship.x && r.y == ship.y) {
+            let res = resources.remove(idx);
+            *ship.cargo.entry(res.kind).or_insert(0) += 1;
+            // Refuel if crystal
+            if res.kind == Resource::Crystal {
+                ship.fuel = (ship.fuel + 20.0).min(100.0);
+            }
+            return Some(res.kind);
+        }
+    }
+    None
+}
+
+#[tokio::main]
+async fn main() {
+    // Setup terminal
+    let mut stdout = stdout();
+    terminal::enable_raw_mode().unwrap();
+    execute!(stdout, terminal::EnterAlternateScreen, cursor::Hide).unwrap();
+
+    let mut ship = Ship::new();
+    let mut asteroids = vec![
+        Asteroid { x: 5, y: 5 },
+        Asteroid { x: 20, y: 8 },
+        Asteroid { x: 15, y: 12 },
+    ];
+    let mut resources = vec![
+        ResourceNode { x: 8, y: 3, kind: Resource::Iron },
+        ResourceNode { x: 25, y: 10, kind: Resource::Crystal },
+        ResourceNode { x: 12, y: 7, kind: Resource::Gold },
+    ];
+    let mut score = 0;
+
+    loop {
+        render(&ship, &asteroids, &resources, score);
+
+        let input = read_input().await;
+        if let InputEvent::Quit = input {
+            break;
+        }
+
+        physics_system(&input, &mut ship);
+
+        if collision_system(&ship, &asteroids) || ship.fuel <= 0.0 {
+            render(&ship, &asteroids, &resources, score);
+            println!("Game Over! Final Score: {}", score);
+            break;
+        }
+
+        if let Some(_mined) = mining_system(&input, &mut ship, &mut resources) {
+            score += 10;
+        }
+
+        tokio::time::sleep(Duration::from_millis(80)).await;
+    }
+
+    // Restore terminal
+    execute!(stdout, cursor::Show, terminal::LeaveAlternateScreen).unwrap();
+    terminal::disable_raw_mode().unwrap();
 }
