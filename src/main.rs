@@ -224,6 +224,7 @@ async fn main() {
 
         if collision_system(&ship, &asteroids) || ship.fuel <= 0.0 {
             render(&ship, &asteroids, &resources, score);
+            //This isn't working, I need to check this, I think it's something to do with the game loop ending and clearing the terminal
             println!("Game Over! Final Score: {}", score);
             break;
         }
