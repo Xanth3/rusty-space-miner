@@ -211,6 +211,8 @@ async fn main() {
         ResourceNode { x: 12, y: 7, kind: Resource::Gold },
     ];
     let mut score = 0;
+    let mut tick: u32 = 0;
+    let mut spawn_rate: u32 = 50; // Lower is faster
 
     loop {
         render(&ship, &asteroids, &resources, score);
@@ -221,6 +223,20 @@ async fn main() {
         }
 
         physics_system(&input, &mut ship);
+
+        // Asteroid Spawning
+        tick += 1;
+        if tick % spawn_rate == 0 {
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let new_x = rng.gen_range(0..32);
+            let new_y = rng.gen_range(0..15);
+            asteroids.push(Asteroid { x: new_x, y: new_y });
+        }
+        // Increase Difficulty 
+        if tick % 500 == 0 && spawn_rate > 10 {
+            spawn_rate -= 5; // Asteroids spawn more frequently
+        }
 
         if collision_system(&ship, &asteroids) || ship.fuel <= 0.0 {
             render(&ship, &asteroids, &resources, score);
