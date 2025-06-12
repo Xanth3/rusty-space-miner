@@ -214,6 +214,26 @@ async fn main() {
     let mut tick: u32 = 0;
     let mut spawn_rate: u32 = 50; // Lower is faster
 
+    // Show welcome screen
+    execute!(stdout, terminal::Clear(ClearType::All), cursor::MoveTo(0, 0)).unwrap();
+    println!("╔════════════════════════════════════╗");
+    println!("║      RUSTY SPACE MINER            ║");
+    println!("║------------------------------------║");
+    println!("║  Use WASD to move, SPACE to mine   ║");
+    println!("║  Avoid asteroids!                  ║");
+    println!("║  Press Q to quit                   ║");
+    println!("╚════════════════════════════════════╝");
+    println!();
+    println!("Press any key to start...");
+    // Wait for any key
+    loop {
+        if event::poll(Duration::from_millis(10)).unwrap() {
+            if let Event::Key(_) = event::read().unwrap() {
+                break;
+            }
+        }
+    }
+
     loop {
         render(&ship, &asteroids, &resources, score);
 
