@@ -1,6 +1,6 @@
 # Rusty Space Miner
 
-**Rusty Space Miner** is a simple terminal-based real-time game written in Rust, where you pilot a mining ship through asteroid fields, collect resources, upgrade your ship, and try to survive as long as possible. This project is born from me wanting to learn the basics of Rust, including async programming, terminal I/O, and game architecture.
+**Rusty Space Miner** is a simple terminal-based real-time game written in Rust, where you pilot a mining ship through asteroid fields, collect resources, upgrade your ship, and try to survive as long as possible. This project is born from me wanting to refresh myself on the basics of Rust.
 
 ## Demo
 
